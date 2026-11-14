@@ -1567,7 +1567,7 @@ task.spawn(function()
 							break
 						end
 						-- Move toward the coin at a smooth walking-like speed
-						local speed = 21
+						local speed = 24
 						local dt = RunService.Heartbeat:Wait()
 						local step = math.min(dist, speed * dt)
 						h.CFrame = h.CFrame + delta.Unit * step
