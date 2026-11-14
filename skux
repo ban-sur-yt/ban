@@ -45,6 +45,8 @@ local state = {
 	autofarm = false,
 	noclip = false,
 	fly = false,
+	coinfarm = false,
+	antiAFK = false,
 	aimbot = false,
 	aimKey = Enum.UserInputType.MouseButton2,
 	aimHeld = false,
@@ -950,12 +952,37 @@ makeToggle(farmScroll, "Autofarm Candy (auto teleport)", 1, function(on)
 	end
 end)
 
+makeToggle(farmScroll, "Autofarm Coins (CoinContainer)", 2, function(on)
+	state.coinfarm = on
+	if not on then
+		farmStatusLabel.Text = "Status: Idle"
+	end
+end)
+
+local antiAFKConnection = nil
+makeToggle(farmScroll, "Anti-AFK (auto idle bypass)", 3, function(on)
+	state.antiAFK = on
+	if on then
+		local VirtualUser = game:GetService("VirtualUser")
+		antiAFKConnection = LocalPlayer.Idled:Connect(function()
+			VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+			task.wait(1)
+			VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+		end)
+	else
+		if antiAFKConnection then
+			antiAFKConnection:Disconnect()
+			antiAFKConnection = nil
+		end
+	end
+end)
+
 local farmInfo = makeCard(farmScroll, 2, 60)
 local farmInfoLabel = Instance.new("TextLabel")
 farmInfoLabel.Size = UDim2.new(1, -28, 1, -12)
 farmInfoLabel.Position = UDim2.new(0, 14, 0, 6)
 farmInfoLabel.BackgroundTransparency = 1
-farmInfoLabel.Text = "Automatically teleports to every candy detected on the map, one after another, and keeps farming new candies as they spawn."
+farmInfoLabel.Text = "Autofarm Candy teleports you to every candy on the map. Autofarm Coins teleports you through every coin inside the CoinContainer. Anti-AFK simulates activity so you never get kicked for being idle."
 farmInfoLabel.TextColor3 = Color3.fromRGB(210, 190, 195)
 farmInfoLabel.Font = Enum.Font.FredokaOne
 farmInfoLabel.TextSize = 14
@@ -1418,6 +1445,38 @@ task.spawn(function()
 					task.wait(0.5)
 				end
 			else
+				task.wait(0.5)
+			end
+		else
+			task.wait(0.25)
+		end
+	end
+end)
+
+-- Autofarm Coins: teleport through every coin in workspace.CoinContainer
+task.spawn(function()
+	while true do
+		if state.coinfarm then
+			local char = LocalPlayer.Character
+			local hrp = char and char:FindFirstChild("HumanoidRootPart")
+			local container = workspace:FindFirstChild("CoinContainer")
+			if hrp and container then
+				local teleported = false
+			for _, coin in container:GetChildren() do
+				if not state.coinfarm then break end
+				if coin:IsA("BasePart") then
+					farmStatusLabel.Text = "Status: Teleporting to coin..."
+					hrp.CFrame = coin.CFrame
+					teleported = true
+					task.wait(0.5)
+				end
+			end
+			if not teleported then
+				farmStatusLabel.Text = "Status: No coins found, searching..."
+				task.wait(0.5)
+			end
+			else
+				farmStatusLabel.Text = hrp and "Status: No CoinContainer found, searching..." or "Status: Waiting for character..."
 				task.wait(0.5)
 			end
 		else
