@@ -1453,50 +1453,73 @@ task.spawn(function()
 	end
 end)
 
--- Autofarm Coins: teleport through every coin in workspace.CoinContainer,
--- with a fallback that searches the whole map for parts named "coin".
--- The moment a coin is collected, wait 0.2 seconds then move to the next one.
+-- Autofarm Coins: smoothly glide to the nearest coin, collect it,
+-- wait 0.2 seconds, then glide to the next one. Coins that don't disappear
+-- after collection are skipped briefly so the farm never gets stuck.
 task.spawn(function()
+	-- Coins to temporarily ignore (coin -> ignore-until time)
+	local ignored = {}
 	while true do
 		if state.coinfarm then
 			local char = LocalPlayer.Character
 			local hrp = char and char:FindFirstChild("HumanoidRootPart")
-			local container = workspace:FindFirstChild("CoinContainer")
 			if hrp then
-				local teleported = false
+				-- Find the nearest coin: CoinContainer first, then any part with "coin" in its name
+				local nearest, nearestDist = nil, math.huge
+				local container = workspace:FindFirstChild("CoinContainer")
 				if container then
 					for _, coin in container:GetChildren() do
-						if not state.coinfarm then break end
-						if coin:IsA("BasePart") then
-							farmStatusLabel.Text = "Status: Teleporting to coin..."
-							hrp.CFrame = coin.CFrame
-							teleported = true
-							task.wait(0.2)
+					if coin:IsA("BasePart") and (ignored[coin] or 0) < os.clock() then
+						local dist = (coin.Position - hrp.Position).Magnitude
+						if dist < nearestDist then
+							nearest, nearestDist = coin, dist
 						end
 					end
 				end
-				if not teleported then
-					-- Fallback: find the nearest part with "coin" in the name anywhere
-					local nearest, nearestDist = nil, math.huge
+				end
+				if not nearest then
 					for _, d in workspace:GetDescendants() do
-						if d:IsA("BasePart") and string.find(string.lower(d.Name), "coin", 1, true) then
-							local dist = (d.Position - hrp.Position).Magnitude
+						if d:IsA("BasePart") and string.find(string.lower(d.Name), "coin", 1, true) and (ignored[d] or 0) < os.clock() then
+						local dist = (d.Position - hrp.Position).Magnitude
 							if dist < nearestDist then
-								nearest, nearestDist = d, dist
-							end
+							nearest, nearestDist = d, dist
 						end
 					end
-					if nearest then
-						farmStatusLabel.Text = "Status: Teleporting to coin..."
-						hrp.CFrame = CFrame.new(nearest.Position + Vector3.new(0, 3, 0))
-						task.wait(0.2)
-					else
-						farmStatusLabel.Text = "Status: No coins found, searching..."
-						task.wait(0.1)
 					end
+				end
+				if nearest then
+					farmStatusLabel.Text = "Status: Gliding to coin..."
+					-- Glide smoothly toward the coin, frame by frame
+					while state.coinfarm and nearest.Parent do
+						local c = LocalPlayer.Character
+						local h = c and c:FindFirstChild("HumanoidRootPart")
+						if not h then break end
+						local delta = nearest.Position - h.Position
+						local dist = delta.Magnitude
+						if dist < 3 then
+							-- Arrived: sit on the coin so it gets collected
+							h.CFrame = CFrame.new(nearest.Position + Vector3.new(0, 1, 0))
+							break
+						end
+						-- Move toward the coin at a fast but smooth speed
+						local speed = 150
+						local dt = RunService.Heartbeat:Wait()
+						local step = math.min(dist, speed * dt)
+						h.CFrame = h.CFrame + delta.Unit * step
+					end
+					-- Give the coin 0.2 seconds to be collected
+					task.wait(0.2)
+					if nearest.Parent then
+						-- Coin didn't disappear: ignore it for 3 seconds so we move on
+					ignored[nearest] = os.clock() + 3
+					farmStatusLabel.Text = "Status: Moving to next coin..."
+					end
+				else
+					farmStatusLabel.Text = "Status: No coins found, searching..."
+					task.wait(0.1)
 				end
 			else
-				task.wait(0.5)
+				task.wait(0.25)
 			end
 		else
 			task.wait(0.25)
