@@ -405,7 +405,19 @@ local function makeToggle(parent, text, order, callback, defaultOn)
 		callback(on)
 	end)
 
-	return pill
+	-- Programmatically set the toggle state without firing the callback
+	local function setOn(v)
+		if on == v then return end
+		on = v
+		TweenService:Create(pill, TweenInfo.new(0.2), {
+			BackgroundColor3 = on and ACCENT or Color3.fromRGB(60, 60, 68),
+		}):Play()
+		TweenService:Create(knob, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Position = on and UDim2.new(1, -20, 0.5, -9) or UDim2.new(0, 2, 0.5, -9),
+		}):Play()
+	end
+
+	return pill, setOn
 end
 
 local function makeInput(parent, text, order, default, callback)
@@ -665,7 +677,47 @@ makeToggle(scroll, "Infinite Jump", 5, function(on)
 	state.infJump = on
 end)
 
-makeToggle(scroll, "Noclip (walk through walls)", 6, function(on)
+-- Screen shake + warning shown when noclip is blocked by an active autofarm
+local function shakeScreen()
+	local cam = workspace.CurrentCamera
+	if not cam then return end
+	local base = cam.CFrame
+	local t0 = os.clock()
+	local dur = 0.4
+	while os.clock() - t0 < dur do
+		local a = 3 * (1 - (os.clock() - t0) / dur)
+		cam.CFrame = base * CFrame.Angles((math.random() - 0.5) * a / 20, (math.random() - 0.5) * a / 20, 0)
+		RunService.RenderStepped:Wait()
+	end
+	cam.CFrame = base
+end
+
+local function showBlockMessage()
+	local msg = Instance.new("TextLabel")
+	msg.Size = UDim2.fromOffset(340, 46)
+	msg.Position = UDim2.new(0.5, -170, 0.3, 0)
+	msg.BackgroundColor3 = Color3.fromRGB(40, 40, 46)
+	msg.Text = " You need to deactivate Autofarm "
+	msg.TextColor3 = Color3.fromRGB(235, 235, 240)
+	msg.Font = Enum.Font.FredokaOne
+	msg.TextSize = 16
+	msg.Parent = gui
+	corner(msg, 12)
+	stroke(msg, ACCENT, 1.5, 0.4)
+	task.delay(1.6, function()
+		msg:Destroy()
+	end)
+end
+
+local noclipPill, setNoclipOn = makeToggle(scroll, "Noclip (walk through walls)", 6, function(on)
+	if not on and (state.autofarm or state.coinfarm) then
+		-- An autofarm is active and needs noclip: block turning it off
+		shakeScreen()
+		showBlockMessage()
+		setNoclipOn(true)
+		state.noclip = true
+		return
+	end
 	state.noclip = on
 end)
 
@@ -947,6 +999,11 @@ farmStatusLabel.Parent = farmStatusCard
 
 makeToggle(farmScroll, "Autofarm Candy (auto teleport)", 1, function(on)
 	state.autofarm = on
+	if on then
+		-- Autofarm needs noclip to glide through everything: force it on
+		state.noclip = true
+		setNoclipOn(true)
+	end
 	if not on then
 		farmStatusLabel.Text = "Status: Idle"
 	end
@@ -954,6 +1011,11 @@ end)
 
 makeToggle(farmScroll, "Autofarm Coins (CoinContainer)", 2, function(on)
 	state.coinfarm = on
+	if on then
+		-- Autofarm needs noclip to glide through everything: force it on
+		state.noclip = true
+		setNoclipOn(true)
+	end
 	if not on then
 		farmStatusLabel.Text = "Status: Idle"
 	end
@@ -1501,8 +1563,8 @@ task.spawn(function()
 							h.CFrame = CFrame.new(nearest.Position + Vector3.new(0, 1, 0))
 							break
 						end
-						-- Move toward the coin at a fast but smooth speed
-						local speed = 150
+						-- Move toward the coin at a smooth walking-like speed
+						local speed = 21
 						local dt = RunService.Heartbeat:Wait()
 						local step = math.min(dist, speed * dt)
 						h.CFrame = h.CFrame + delta.Unit * step
