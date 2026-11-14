@@ -1454,7 +1454,8 @@ task.spawn(function()
 end)
 
 -- Autofarm Coins: teleport through every coin in workspace.CoinContainer,
--- with a fallback that searches the whole map for parts named "coin"
+-- with a fallback that searches the whole map for parts named "coin".
+-- The moment a coin is collected, wait 0.2 seconds then move to the next one.
 task.spawn(function()
 	while true do
 		if state.coinfarm then
@@ -1470,7 +1471,7 @@ task.spawn(function()
 							farmStatusLabel.Text = "Status: Teleporting to coin..."
 							hrp.CFrame = coin.CFrame
 							teleported = true
-							task.wait(0.5)
+							task.wait(0.2)
 						end
 					end
 				end
@@ -1488,10 +1489,10 @@ task.spawn(function()
 					if nearest then
 						farmStatusLabel.Text = "Status: Teleporting to coin..."
 						hrp.CFrame = CFrame.new(nearest.Position + Vector3.new(0, 3, 0))
-						task.wait(0.5)
+						task.wait(0.2)
 					else
 						farmStatusLabel.Text = "Status: No coins found, searching..."
-						task.wait(0.5)
+						task.wait(0.1)
 					end
 				end
 			else
