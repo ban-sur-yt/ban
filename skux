@@ -1453,30 +1453,48 @@ task.spawn(function()
 	end
 end)
 
--- Autofarm Coins: teleport through every coin in workspace.CoinContainer
+-- Autofarm Coins: teleport through every coin in workspace.CoinContainer,
+-- with a fallback that searches the whole map for parts named "coin"
 task.spawn(function()
 	while true do
 		if state.coinfarm then
 			local char = LocalPlayer.Character
 			local hrp = char and char:FindFirstChild("HumanoidRootPart")
 			local container = workspace:FindFirstChild("CoinContainer")
-			if hrp and container then
+			if hrp then
 				local teleported = false
-			for _, coin in container:GetChildren() do
-				if not state.coinfarm then break end
-				if coin:IsA("BasePart") then
-					farmStatusLabel.Text = "Status: Teleporting to coin..."
-					hrp.CFrame = coin.CFrame
-					teleported = true
-					task.wait(0.5)
+				if container then
+					for _, coin in container:GetChildren() do
+						if not state.coinfarm then break end
+						if coin:IsA("BasePart") then
+							farmStatusLabel.Text = "Status: Teleporting to coin..."
+							hrp.CFrame = coin.CFrame
+							teleported = true
+							task.wait(0.5)
+						end
+					end
 				end
-			end
-			if not teleported then
-				farmStatusLabel.Text = "Status: No coins found, searching..."
-				task.wait(0.5)
-			end
+				if not teleported then
+					-- Fallback: find the nearest part with "coin" in the name anywhere
+					local nearest, nearestDist = nil, math.huge
+					for _, d in workspace:GetDescendants() do
+						if d:IsA("BasePart") and string.find(string.lower(d.Name), "coin", 1, true) then
+							local dist = (d.Position - hrp.Position).Magnitude
+							if dist < nearestDist then
+								nearest, nearestDist = d, dist
+							end
+						end
+					end
+					if nearest then
+						farmStatusLabel.Text = "Status: Teleporting to coin..."
+						hrp.CFrame = CFrame.new(nearest.Position + Vector3.new(0, 3, 0))
+						task.wait(0.5)
+					else
+						farmStatusLabel.Text = "Status: No coins found, searching..."
+						task.wait(0.5)
+					end
+				end
 			else
-				farmStatusLabel.Text = hrp and "Status: No CoinContainer found, searching..." or "Status: Waiting for character..."
 				task.wait(0.5)
 			end
 		else
