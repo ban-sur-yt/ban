@@ -1551,6 +1551,9 @@ task.spawn(function()
 				end
 				if nearest then
 					farmStatusLabel.Text = "Status: Gliding to coin..."
+					-- Float while gliding: anchor the root part so gravity
+					-- can't pull us off the map when there's no floor below
+					hrp.Anchored = true
 					-- Glide smoothly toward the coin, frame by frame
 					while state.coinfarm and nearest.Parent do
 						local c = LocalPlayer.Character
@@ -1568,6 +1571,10 @@ task.spawn(function()
 						local dt = RunService.Heartbeat:Wait()
 						local step = math.min(dist, speed * dt)
 						h.CFrame = h.CFrame + delta.Unit * step
+					end
+					-- Stop floating: give control back to normal physics
+					if hrp and hrp.Parent then
+						hrp.Anchored = false
 					end
 					-- Give the coin 0.2 seconds to be collected
 					task.wait(0.2)
